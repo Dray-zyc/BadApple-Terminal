@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+Makefile text eol=lf
+*.rc text eol=lf
+*.bin binary
+*.wav binary
+*.ico binary

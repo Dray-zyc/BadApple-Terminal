@@ -1,0 +1,19 @@
+{
+    "threshold": 128,
+    "mode": 0,
+    "mode_mask": 31,
+    "fps_cap": 60,
+    "show_hud": 0,
+    "audio": 1,
+    "jump_keeps_pause": 0,
+    "window_title": 1,
+    "progress_bar": 0,
+    "fade_in": 0,
+    "fade_out": 0,
+    "fade_frames": 30,
+    "loop": 1,
+    "jump_flash": 0,
+    "jump_flash_frames": 8,
+    "intro_rain": 0,
+    "intro_frames": 30
+}

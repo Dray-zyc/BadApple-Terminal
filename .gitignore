@@ -1,0 +1,23 @@
+# build artifacts
+*.o
+*.exe
+main
+main.exe
+BadApple.exe
+bad_apple
+tools/preprocess.exe
+tools/preprocess
+src/app.res.o
+
+# large source files
+assets/bad_apple.mp4
+assets/frames.raw
+
+# release output
+Bad_Apple_v*/
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
