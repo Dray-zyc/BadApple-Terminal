@@ -24,8 +24,8 @@ jobs:
             mingw-w64-ucrt-x86_64-binutils
       - name: build
         run: |
-          make clean
-          make
+          mingw32-make clean
+          mingw32-make
       - name: package
         run: |
           mkdir -p pkg/assets
