@@ -81,6 +81,23 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
+          body: |
+            # Bad Apple Terminal Player ${{ github.ref_name }}
+
+            在终端里播放 Bad Apple。
+
+            ## 安装
+
+            | 平台 | 文件 |
+            |------|------|
+            | Windows | `BadApple_windows.zip` |
+            | Linux | `BadApple_linux.tar.gz` |
+
+            下载完解压运行 `BadApple.exe` 即可。
+
+            ## 更新内容
+
+            此为第一个 `Release`。
           files: |
             artifacts/windows-zip/BadApple_windows.zip
             artifacts/linux-tar/BadApple_linux.tar.gz

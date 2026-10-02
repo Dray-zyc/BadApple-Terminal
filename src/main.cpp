@@ -102,19 +102,19 @@ int main(int argc,char**argv){
     // printf("frames = %u, size = %ux%u, fps = %u\n",ld.count,ld.W,ld.H,ld.fps);
     // read all config
     int base_thr        =cfg.get_int("threshold",128);
-    int mode_mask       =cfg.get_int("mode_mask",0b1101);
+    int mode_mask       =cfg.get_int("mode_mask",0b11111);
     int start_mode      =cfg.get_int("mode",0);
     int fps_cap         =cfg.get_int("fps_cap",60);
     int show_hud        =cfg.get_int("show_hud",0);
     int audio_on        =cfg.get_int("audio",1);
     int jump_keeps_pause=cfg.get_int("jump_keeps_pause",0);
     int window_title    =cfg.get_int("window_title",1);
-    int progress_bar    =cfg.get_int("progress_bar",1);
-    int fade_in         =cfg.get_int("fade_in",1);
-    int fade_out        =cfg.get_int("fade_out",1);
+    int progress_bar    =cfg.get_int("progress_bar",0);
+    int fade_in         =cfg.get_int("fade_in",0);
+    int fade_out        =cfg.get_int("fade_out",0);
     int fade_frames     =cfg.get_int("fade_frames",30);
-    int loop            =cfg.get_int("loop",0);
-    int jump_flash      =cfg.get_int("jump_flash",1);
+    int loop            =cfg.get_int("loop",1);
+    int jump_flash      =cfg.get_int("jump_flash",0);
     int jump_flash_frames=cfg.get_int("jump_flash_frames",8);
     int intro_rain_on   =cfg.get_int("intro_rain",1);
     int intro_frames    =cfg.get_int("intro_frames",30);

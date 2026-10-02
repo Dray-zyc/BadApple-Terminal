@@ -64,6 +64,8 @@ Windows 需要 MinGW64，Linux / macOS 用系统 g++。
     mingw32-make          # Windows
     make                  # Linux / macOS
 
+你也可以直接从 [Release](https://github.com/Dray-zyc/BadApple-Terminal/releases) 中下载可执行文件
+
 ## 版权说明
 
 代码部分以 MIT 许可证发布。
