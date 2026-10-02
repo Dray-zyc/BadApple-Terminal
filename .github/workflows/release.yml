@@ -35,7 +35,7 @@ jobs:
           cp LICENSE pkg/
           cp assets/frames.bin pkg/assets/
           cp assets/audio.wav pkg/assets/
-          7z a BadApple_windows.zip ./pkg/*
+          cd pkg && zip -r ../BadApple_windows.zip . && cd ..
       - uses: actions/upload-artifact@v4
         with:
           name: windows-zip
