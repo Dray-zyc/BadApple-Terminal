@@ -121,7 +121,7 @@ jobs:
 
             ## 更新内容
 
-            - 新增了MacOS版
+            - 些许修改
           files: |
             artifacts/windows-zip/BadApple_windows.zip
             artifacts/linux-tar/BadApple_linux.tar.gz
