@@ -1,1 +1,31 @@
 1 ICON "assets/icon.ico"
+
+1 VERSIONINFO
+FILEVERSION     1,0,6,1
+PRODUCTVERSION  1,0,6,1
+FILEFLAGSMASK   0x3fL
+FILEFLAGS       0x0L
+FILEOS          0x40004L
+FILETYPE        0x1L
+FILESUBTYPE     0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "Comments",         "Made by Dray_zyc"
+            VALUE "CompanyName",      "EachMoon Studios"
+            VALUE "FileDescription",  "Bad Apple Terminal Player"
+            VALUE "FileVersion",      "1.0.6.1"
+            VALUE "InternalName",     "BadApple"
+            VALUE "LegalCopyright",   "MIT License - Copyright (c) 2026 EachMoon Studios-Dray_zyc"
+            VALUE "OriginalFilename", "BadApple.exe"
+            VALUE "ProductName",      "Bad Apple Terminal Player"
+            VALUE "ProductVersion",   "1.0.6.1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
