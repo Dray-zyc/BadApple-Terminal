@@ -68,8 +68,31 @@ jobs:
           name: linux-tar
           path: BadApple_linux.tar.gz
 
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          make clean
+          make -j$(sysctl -n hw.ncpu)
+      - name: package
+        run: |
+          mkdir -p pkg/assets
+          cp bad_apple pkg/
+          cp config.json pkg/
+          cp README.md pkg/
+          cp LICENSE pkg/
+          cp assets/frames.bin pkg/assets/
+          cp assets/audio.wav pkg/assets/
+          tar czf BadApple_macos.tar.gz -C pkg .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-tar
+          path: BadApple_macos.tar.gz
+
   release:
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -92,14 +115,16 @@ jobs:
             |------|------|
             | Windows | `BadApple_windows.zip` |
             | Linux | `BadApple_linux.tar.gz` |
+            | macOS | `BadApple_macos.tar.gz` |
 
             下载完解压运行 `BadApple.exe` 即可。
 
             ## 更新内容
 
-            此为第一个 `Release`。
+            - 新增了MacOS版
           files: |
             artifacts/windows-zip/BadApple_windows.zip
             artifacts/linux-tar/BadApple_linux.tar.gz
+            artifacts/macos-tar/BadApple_macos.tar.gz
           draft: false
           prerelease: false
