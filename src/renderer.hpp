@@ -21,6 +21,10 @@ struct Renderer{
     int  hud_count;    // active hud lines
     Cell*front;        // front buffer
     Cell*back;         // back buffer
+    unsigned char*pix; // resampled subpixel buffer
+    int pw,ph;         // subpixel grid size
+    char subtitle[2][128];
+    int  subtitle_count;
     void init(int w,int h);
     void release();
     void setMode(int m);

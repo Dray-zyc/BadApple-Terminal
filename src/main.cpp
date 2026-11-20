@@ -4,6 +4,7 @@
 #include"audio.hpp"
 #include"config.hpp"
 #include"term.hpp"
+#include"subtitle.hpp"
 #include<chrono>
 #include<thread>
 #include<stdlib.h>
@@ -12,6 +13,9 @@
 #ifdef _WIN32
 #include<windows.h>
 #include<direct.h>
+#include<mmsystem.h>
+// high resolution waitable timer, 0 if unavailable
+static HANDLE wait_timer=0;
 // chdir to exe dir
 static void chdir_to_exe(const char*argv0){
     char buf[1024];
@@ -37,6 +41,10 @@ static void cleanup(){
     Input::restore();
     fputs("\033[?25h\033[0m\033[?1049l",stdout);
     fflush(stdout);
+    #ifdef _WIN32
+    if(wait_timer){CloseHandle(wait_timer);wait_timer=0;}
+    timeEndPeriod(1);
+    #endif
 }
 // set window title based on hud state
 static void set_title(int window_title,int show_hud){
@@ -48,18 +56,38 @@ static void set_title(int window_title,int show_hud){
     fflush(stdout);
     #endif
 }
+// sleep until deadline, last part busy-waits for sub-ms accuracy
+static void wait_until(std::chrono::steady_clock::time_point tp){
+    long long us=std::chrono::duration_cast<std::chrono::microseconds>(
+        tp-std::chrono::steady_clock::now()).count();
+    #ifdef _WIN32
+    if(wait_timer&&us>400){
+        // high resolution timer, ~0.3ms late, no cpu burn
+        LARGE_INTEGER due;
+        due.QuadPart=-(us-300)*10;
+        if(SetWaitableTimer(wait_timer,&due,0,0,0,0))
+            WaitForSingleObject(wait_timer,INFINITE);
+    }else if(!wait_timer&&us>12000){
+        // coarse system timer: sleep all but one tick
+        std::this_thread::sleep_for(std::chrono::microseconds(us-11000));
+    }
+    #else
+    if(us>2000)std::this_thread::sleep_for(std::chrono::microseconds(us-1000));
+    #endif
+    while(std::chrono::steady_clock::now()<tp)std::this_thread::yield();
+}
 // run fade in/out
-static void fade(Renderer&R,const unsigned char*gray,int cols,int rows,int from,int to,int frames,int poll_ms){
+static void fade(Renderer&R,const unsigned char*gray,int cols,int rows,int from,int to,int frames,int sleep_us){
     for(int i=0;i<frames;i++){
         R.threshold=from+(to-from)*i/frames;
         R.render_scaled(gray,cols,rows);
         R.present();
-        std::this_thread::sleep_for(std::chrono::milliseconds(poll_ms>0?poll_ms:16));
+        std::this_thread::sleep_for(std::chrono::microseconds(sleep_us>0?sleep_us:16000));
     }
     R.threshold=to;
 }
 // run noise convergence intro
-static void intro_rain(Renderer&R,const unsigned char*gray,int cols,int rows,int frames,int poll_ms){
+static void intro_rain(Renderer&R,const unsigned char*gray,int cols,int rows,int frames,int sleep_us){
     static const char glyphs[]="!@#$%^&*()_+-=[]{}|;:,.<>?/";
     int ng=sizeof(glyphs)-1;
     for(int t=0;t<frames;t++){
@@ -74,7 +102,7 @@ static void intro_rain(Renderer&R,const unsigned char*gray,int cols,int rows,int
             }
         }
         R.present();
-        std::this_thread::sleep_for(std::chrono::milliseconds(poll_ms>0?poll_ms:33));
+        std::this_thread::sleep_for(std::chrono::microseconds(sleep_us>0?sleep_us:33000));
     }
     // force full redraw of clean frame
     R.invalidate();
@@ -99,12 +127,11 @@ int main(int argc,char**argv){
         fprintf(stderr,"make sure you run from the project root\n");
         return 1;
     }
-    // printf("frames = %u, size = %ux%u, fps = %u\n",ld.count,ld.W,ld.H,ld.fps);
     // read all config
     int base_thr        =cfg.get_int("threshold",128);
-    int mode_mask       =cfg.get_int("mode_mask",0b11111);
+    int mode_mask       =cfg.get_int("mode_mask",0b1101);
     int start_mode      =cfg.get_int("mode",0);
-    int fps_cap         =cfg.get_int("fps_cap",60);
+    int fps             =cfg.get_int("fps",30);
     int show_hud        =cfg.get_int("show_hud",0);
     int audio_on        =cfg.get_int("audio",1);
     int jump_keeps_pause=cfg.get_int("jump_keeps_pause",0);
@@ -118,6 +145,11 @@ int main(int argc,char**argv){
     int jump_flash_frames=cfg.get_int("jump_flash_frames",8);
     int intro_rain_on   =cfg.get_int("intro_rain",1);
     int intro_frames    =cfg.get_int("intro_frames",30);
+    int sub_lang   =cfg.get_int("subtitle",0);
+    int sub_info_on=cfg.get_int("subtitle_info",0);
+    // fps limits
+    if(fps<1)fps=30;
+    if(fps>240)fps=240;
     // init renderer
     Renderer R;R.init(ld.W,ld.H);
     R.threshold=base_thr;
@@ -132,10 +164,21 @@ int main(int argc,char**argv){
         audio_on=0;
         fprintf(stderr,"audio disabled or unavailable\n");
     }
+    Subtitle sub_lyric,sub_info;
+    sub_lyric.init();sub_info.init();
+    if(sub_lang==1)sub_lyric.load("assets/subtitles/lyrics_ja.srt");
+    else if(sub_lang==2)sub_lyric.load("assets/subtitles/lyrics_zh.srt");
+    if(sub_info_on)sub_info.load("assets/subtitles/characters.srt");
     Input::init();
     signal(SIGINT,on_signal);
     signal(SIGTERM,on_signal);
     atexit(cleanup);
+    // fine timer for high refresh rates
+    #ifdef _WIN32
+    timeBeginPeriod(1);
+    wait_timer=CreateWaitableTimerExW(0,0,0x00000002,TIMER_ALL_ACCESS);
+    if(wait_timer==INVALID_HANDLE_VALUE)wait_timer=0;
+    #endif
     // enter alt screen
     fputs("\033[?1049h\033[?25l\033[2J",stdout);fflush(stdout);
     // state
@@ -143,21 +186,26 @@ int main(int argc,char**argv){
     uint32_t frame=0;
     auto t0=std::chrono::steady_clock::now();
     auto paused_at=std::chrono::steady_clock::now();
-    int poll_ms=fps_cap>0?1000/fps_cap:8;
+    int frame_us=1000000/fps;
     int flash_remaining=0;
     int first_frame_rendered=0;
     int cols=0,rows=0;
+    // last drawn state, used to skip untouched frames
+    uint32_t last_frame=0xFFFFFFFFu;
+    int last_thr=-1,last_mode=-1,last_cw=-1,last_ch=-1;
+    int redraw=0;
     // initial window query
     term_size(cols,rows);
     // intro rain
-    if(intro_rain_on){
+    const unsigned char*g0=ld.frame(0);
+    if(intro_rain_on&&g0){
         R.resize(cols,rows);
-        intro_rain(R,ld.frames[0].gray,cols,rows,intro_frames,poll_ms*3);
+        intro_rain(R,g0,cols,rows,intro_frames,frame_us*3);
     }
     // fade in
-    if(fade_in){
+    if(fade_in&&g0){
         R.resize(cols,rows);
-        fade(R,ld.frames[0].gray,cols,rows,255,base_thr,fade_frames,poll_ms*2);
+        fade(R,g0,cols,rows,255,base_thr,fade_frames,frame_us*2);
     }
     // start audio
     if(audio_on){
@@ -165,6 +213,7 @@ int main(int argc,char**argv){
         au.play();
     }
     t0=std::chrono::steady_clock::now();
+    auto next=t0;
     while(st!=QUIT){
         // handle keys
         while(Input::hasKey()){
@@ -183,6 +232,7 @@ int main(int argc,char**argv){
                 t0=std::chrono::steady_clock::now();
                 st=PLAYING;
                 if(jump_flash)flash_remaining=jump_flash_frames;
+                sub_lyric.reset();sub_info.reset();
             }
             // jump 20..100%
             if(k>='1'&&k<='5'){
@@ -193,10 +243,10 @@ int main(int argc,char**argv){
                 frame=idx;
                 if(audio_on){
                     au.stop();
-                    au.seek((long)ld.frames[idx].ts);
+                    au.seek((long)ld.idx[idx].ts);
                     if(!(was_paused&&jump_keeps_pause))au.play();
                 }
-                t0=std::chrono::steady_clock::now()-std::chrono::milliseconds(ld.frames[idx].ts);
+                t0=std::chrono::steady_clock::now()-std::chrono::milliseconds(ld.idx[idx].ts);
                 if(was_paused&&jump_keeps_pause){
                     st=PAUSED;
                     paused_at=std::chrono::steady_clock::now();
@@ -204,10 +254,12 @@ int main(int argc,char**argv){
                     st=PLAYING;
                 }
                 if(jump_flash)flash_remaining=jump_flash_frames;
+                sub_lyric.reset();sub_info.reset();
             }
             // toggle hud
             if(k=='h'||k=='H'){
                 show_hud^=1;
+                redraw=1;
                 set_title(window_title,show_hud);
             }
             // cycle mode
@@ -226,7 +278,7 @@ int main(int argc,char**argv){
                 ms=std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now()-t0).count();
             }
-            while(frame+1<ld.count&&(long long)ld.frames[frame+1].ts<=ms)frame++;
+            while(frame+1<ld.count&&(long long)ld.idx[frame+1].ts<=ms)frame++;
             if(frame+1>=ld.count){
                 // end of playback
                 if(loop){
@@ -253,28 +305,54 @@ int main(int argc,char**argv){
         }else{
             R.progress=-1;
         }
+        // fill subtitle
+        R.subtitle_count=0;
+        if(sub_info_on){
+            const char*i=sub_info.update(ld.idx[frame].ts);
+            if(i&&*i)strncpy(R.subtitle[R.subtitle_count++],i,127);
+        }
+        if(sub_lang){
+            const char*l=sub_lyric.update(ld.idx[frame].ts);
+            if(l&&*l)strncpy(R.subtitle[R.subtitle_count++],l,127);
+        }
         // fill hud
         if(show_hud){
             R.hud_count=0;
             sprintf(R.hud[R.hud_count++],"frame %u/%u",frame,ld.count);
             sprintf(R.hud[R.hud_count++],"thr %d",R.threshold);
             sprintf(R.hud[R.hud_count++],"mode %d",R.mode);
-            sprintf(R.hud[R.hud_count++],"audio %s",audio_on?"on":"off");
+            sprintf(R.hud[R.hud_count++],"fps %d %s",fps,audio_on?"audio on":"audio off");
         }else{
             R.hud_count=0;
         }
-        // render
-        R.render_scaled(ld.frames[frame].gray,cols,rows);
-        R.present();
-        first_frame_rendered=1;
-        std::this_thread::sleep_for(std::chrono::milliseconds(poll_ms));
+        // draw only when the picture actually changed
+        if(redraw||frame!=last_frame||R.threshold!=last_thr||R.mode!=last_mode||cols!=last_cw||rows!=last_ch){
+            const unsigned char*g=ld.frame(frame);
+            if(g){
+                R.render_scaled(g,cols,rows);
+                R.present();
+                first_frame_rendered=1;
+                redraw=0;
+                last_frame=frame;
+                last_thr=R.threshold;
+                last_mode=R.mode;
+                last_cw=cols;
+                last_ch=rows;
+            }
+        }
+        // pace to target fps
+        next+=std::chrono::microseconds(frame_us);
+        if(next<std::chrono::steady_clock::now())
+            next=std::chrono::steady_clock::now();
+        wait_until(next);
     }
     // fade out
     if(fade_out&&first_frame_rendered){
         term_size(cols,rows);
         R.progress=-1;
         R.hud_count=0;
-        fade(R,ld.frames[frame<ld.count?frame:ld.count-1].gray,cols,rows,base_thr,255,fade_frames,poll_ms*2);
+        const unsigned char*g=ld.frame(frame<ld.count?frame:ld.count-1);
+        if(g)fade(R,g,cols,rows,base_thr,255,fade_frames,frame_us*2);
     }
     // cleanup
     if(audio_on){au.stop();au.close();}

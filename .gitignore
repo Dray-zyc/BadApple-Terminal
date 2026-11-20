@@ -9,9 +9,13 @@ tools/preprocess.exe
 tools/preprocess
 src/app.res.o
 
-# large source files
+# large data: both are over GitHub's 100MB per file limit
+# frames.bin (38MB) is the shipped asset, frames.raw is rebuilt by `make raw`
 assets/bad_apple.mp4
 assets/frames.raw
+
+# local agent state
+.deep-copilot/
 
 # release output
 Bad_Apple_v*/
